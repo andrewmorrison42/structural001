@@ -310,7 +310,7 @@ async function initPyodide() {
     setStatus('Installing packages…', 'loading');
     await py.loadPackagesFromImports('import numpy, sympy');
     await py.runPythonAsync(`import micropip`);
-    await py.runPythonAsync(`await micropip.install(['handcalcs', 'forallpeople'])`);
+    await py.runPythonAsync(`await micropip.install(['handcalcs'])`);
     setStatus('Initialising engine…', 'loading');
 
     await py.runPythonAsync(`
@@ -322,27 +322,25 @@ def init_context():
     global _ctx
     _ctx = {}
     setup_code = """
-import forallpeople as si
-si.environment('default')
-m = si.m
-mm = 1e-3 * si.m
-cm = 1e-2 * si.m
-km = 1e3 * si.m
-N = si.N
-kN = 1e3 * si.N
-MN = 1e6 * si.N
-Pa = si.Pa
-kPa = 1e3 * si.Pa
-MPa = 1e6 * si.Pa
-GPa = 1e9 * si.Pa
-kg = si.kg
-t = 1e3 * si.kg
-kNm = 1e3 * si.N * si.m
-MNm = 1e6 * si.N * si.m
-kNm2 = 1e3 * si.N * si.m * si.m
 from math import *
 import numpy as np
 import sympy as sp
+# SI unit multipliers (plain floats — compatible with handcalcs)
+m   = 1.0        # metre
+mm  = 1e-3       # millimetre
+cm  = 1e-2       # centimetre
+km  = 1e3        # kilometre
+N   = 1.0        # newton
+kN  = 1e3        # kilonewton
+MN  = 1e6        # meganewton
+Pa  = 1.0        # pascal
+kPa = 1e3        # kilopascal
+MPa = 1e6        # megapascal
+GPa = 1e9        # gigapascal
+kg  = 1.0        # kilogram
+t   = 1e3        # tonne (metric)
+kNm = 1e3        # kilonewton·metre
+MNm = 1e6        # meganewton·metre
 """
     exec(setup_code, _ctx)
     return "ok"
