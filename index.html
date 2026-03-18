@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StructCalc – Structural Engineering Calculator</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$'],['\\[','\\]']] },
+  options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] },
+  startup: { ready() { MathJax.startup.defaultReady(); } }
+};
+</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#1a3a5c;--accent:#2563eb;--pass:#15803d;--fail:#dc2626;
+  --bg:#f8fafc;--border:#cbd5e1;--panel-bg:#fff;
+  --text:#1e293b;--muted:#64748b;--radius:6px;
+}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* TOOLBAR */
+#toolbar{background:var(--navy);padding:0 12px;display:flex;align-items:center;gap:8px;height:46px;flex-shrink:0}
+#toolbar .logo{color:#fff;font-size:1.1rem;font-weight:700;letter-spacing:.5px;margin-right:8px}
+#toolbar button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:4px 10px;border-radius:var(--radius);cursor:pointer;font-size:.82rem;transition:background .15s}
+#toolbar button:hover{background:rgba(255,255,255,.25)}
+#toolbar button.primary{background:var(--accent);border-color:var(--accent)}
+#toolbar button.primary:hover{background:#1d4ed8}
+#toolbar .sep{width:1px;height:24px;background:rgba(255,255,255,.2);margin:0 4px}
+#toolbar .spacer{flex:1}
+
+/* META ROW */
+#meta-row{background:#fff;border-bottom:1px solid var(--border);padding:5px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap}
+#meta-row label{font-size:.78rem;color:var(--muted);white-space:nowrap}
+#meta-row input{border:1px solid var(--border);border-radius:4px;padding:2px 7px;font-size:.82rem;color:var(--text);min-width:100px}
+#status-bar{margin-left:auto;font-size:.78rem;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#94a3b8;display:inline-block}
+.status-dot.ready{background:var(--pass)}
+.status-dot.error{background:var(--fail)}
+.status-dot.loading{background:#f59e0b;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* MAIN AREA */
+#main{display:flex;flex:1;overflow:hidden;gap:0}
+
+/* EDITOR PANEL */
+#editor-panel{width:48%;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+#add-block-bar{padding:7px 10px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0}
+#add-block-bar button{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 9px;border-radius:var(--radius);cursor:pointer;font-size:.78rem;transition:background .15s}
+#add-block-bar button:hover{background:#e2e8f0}
+#blocks-list{flex:1;overflow-y:auto;padding:8px}
+
+/* BLOCK CARD */
+.block-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
+.block-header{display:flex;align-items:center;gap:4px;padding:4px 8px;background:#f1f5f9;border-bottom:1px solid var(--border)}
+.block-type-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-right:4px}
+.block-header .spacer{flex:1}
+.block-controls button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:.85rem;padding:1px 5px;border-radius:3px;transition:background .15s}
+.block-controls button:hover{background:#e2e8f0;color:var(--text)}
+.block-body{padding:6px}
+.block-body .CodeMirror{height:auto;min-height:60px;font-size:.82rem;border:1px solid var(--border);border-radius:4px}
+.block-body .CodeMirror-scroll{min-height:60px;max-height:300px}
+.block-body textarea{width:100%;border:1px solid var(--border);border-radius:4px;padding:5px 7px;font-size:.82rem;resize:vertical;min-height:50px;font-family:system-ui,sans-serif}
+.block-body input[type=text],.block-body input[type=number],.block-body select{border:1px solid var(--border);border-radius:4px;padding:3px 7px;font-size:.82rem;width:100%}
+.check-fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:5px}
+.check-fields label{font-size:.75rem;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.heading-level-row{display:flex;align-items:center;gap:5px;margin-bottom:5px}
+.heading-level-row label{font-size:.75rem;color:var(--muted)}
+.heading-level-row select{width:auto;padding:2px 5px}
+
+/* OUTPUT PANEL */
+#output-panel{flex:1;overflow-y:auto;background:var(--panel-bg);padding:16px 24px;font-family:'Times New Roman',Times,serif}
+.output-page-header{display:none;margin-bottom:24px;border-bottom:2px solid var(--navy);padding-bottom:8px}
+.out-block{margin-bottom:18px}
+.out-heading-1{font-size:1.5rem;font-weight:700;color:var(--navy);border-bottom:2px solid var(--navy);padding-bottom:4px;margin-bottom:8px;font-family:system-ui,sans-serif}
+.out-heading-2{font-size:1.2rem;font-weight:600;color:var(--navy);border-bottom:1px solid var(--border);padding-bottom:3px;margin-bottom:6px;font-family:system-ui,sans-serif}
+.out-heading-3{font-size:1rem;font-weight:600;color:var(--navy);margin-bottom:4px;font-family:system-ui,sans-serif}
+.out-text{line-height:1.6;white-space:pre-wrap;font-size:.95rem}
+.out-latex{background:#fff;border-left:3px solid var(--accent);padding:8px 12px;border-radius:0 var(--radius) var(--radius) 0;overflow-x:auto;font-size:.92rem}
+.check-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:4px;font-size:.82rem;font-family:system-ui,sans-serif;font-weight:600;margin-top:6px}
+.check-badge.pass{background:#dcfce7;color:var(--pass);border:1px solid #86efac}
+.check-badge.fail{background:#fee2e2;color:var(--fail);border:1px solid #fca5a5}
+.out-error{background:#fee2e2;color:var(--fail);padding:6px 10px;border-radius:4px;font-family:monospace;font-size:.8rem}
+.placeholder-text{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem;text-align:center;margin-top:40px}
+
+/* BOTTOM PANELS */
+#panels-section{border-top:2px solid var(--border);background:#fff;flex-shrink:0;max-height:50vh;overflow-y:auto}
+.panel-toggle-bar{display:flex;gap:0;border-bottom:1px solid var(--border)}
+.panel-tab{padding:7px 16px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--muted);border:none;background:none;border-bottom:2px solid transparent;transition:all .15s}
+.panel-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.panel-content{display:none;padding:14px 16px}
+.panel-content.active{display:block}
+.panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.panel-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.form-group{display:flex;flex-direction:column;gap:3px}
+.form-group label{font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.form-group input,.form-group select,.form-group textarea{border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-size:.82rem;width:100%}
+.panel-run-btn{background:var(--accent);color:#fff;border:none;padding:6px 18px;border-radius:var(--radius);cursor:pointer;font-size:.82rem;font-weight:600;margin-top:8px;transition:background .15s}
+.panel-run-btn:hover{background:#1d4ed8}
+.panel-output{margin-top:12px;overflow-x:auto}
+.scenario-table{border-collapse:collapse;font-size:.82rem;font-family:system-ui,sans-serif;width:100%}
+.scenario-table th{background:#f1f5f9;padding:5px 10px;text-align:left;border:1px solid var(--border)}
+.scenario-table td{padding:4px 10px;border:1px solid var(--border)}
+.solver-result{font-family:'Times New Roman',serif;font-size:1rem;margin-top:8px;padding:10px;background:#f8fafc;border-radius:4px}
+.beam-loads-list{margin-top:6px;display:flex;flex-direction:column;gap:4px;max-height:100px;overflow-y:auto}
+.beam-load-row{display:flex;align-items:center;gap:4px;font-size:.78rem}
+.beam-load-row input{padding:2px 5px;width:60px}
+.beam-load-row button{background:#fee2e2;color:var(--fail);border:1px solid #fca5a5;border-radius:3px;cursor:pointer;padding:1px 5px;font-size:.75rem}
+.add-load-btn{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:4px;cursor:pointer;font-size:.75rem;margin-top:4px}
+.add-load-btn:hover{background:#e2e8f0}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center}
+.modal-box{background:#fff;border-radius:8px;padding:20px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto}
+.modal-box h3{margin-bottom:12px;font-size:1rem;color:var(--navy)}
+.modal-block-item{display:flex;align-items:flex-start;gap:8px;padding:6px;border:1px solid var(--border);border-radius:4px;margin-bottom:5px;font-size:.82rem;cursor:pointer}
+.modal-block-item:hover{background:#f1f5f9}
+.modal-block-item input[type=checkbox]{margin-top:2px;flex-shrink:0}
+.modal-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+.modal-actions button{padding:5px 14px;border-radius:4px;cursor:pointer;font-size:.82rem;font-weight:500}
+.modal-cancel{background:var(--bg);border:1px solid var(--border);color:var(--text)}
+.modal-insert{background:var(--accent);border:none;color:#fff}
+
+/* PRINT */
+@media print{
+  .editor-panel,#toolbar,#add-block-bar,.block-controls,
+  #panels-section,#meta-row,#status-bar,.panel-toggle-bar{display:none!important}
+  #output-panel{width:100%!important;overflow:visible!important;padding:20px!important}
+  #main{display:block!important;overflow:visible!important}
+  body{overflow:visible!important;height:auto!important}
+  .output-page-header{display:block!important}
+}
+</style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <span class="logo">&#9654; StructCalc</span>
+  <div class="sep"></div>
+  <button onclick="newCalc()">&#128196; New</button>
+  <button onclick="openCalc()">&#128194; Open</button>
+  <button onclick="saveCalc()">&#128190; Save</button>
+  <button onclick="insertSnippet()">&#128203; Snippet</button>
+  <div class="sep"></div>
+  <button class="primary" onclick="runAll()">&#9654; Run All</button>
+  <button onclick="printPDF()">&#128424; PDF</button>
+</div>
+
+<!-- META ROW -->
+<div id="meta-row">
+  <label>Title: <input id="doc-title" type="text" value="Untitled Calculation" style="min-width:180px"></label>
+  <label>Engineer: <input id="doc-engineer" type="text" value=""></label>
+  <label>Project: <input id="doc-project" type="text" value=""></label>
+  <label>Date: <input id="doc-date" type="text" value=""></label>
+  <div id="status-bar">
+    <span class="status-dot" id="status-dot"></span>
+    <span id="status-text">Loading Python…</span>
+  </div>
+</div>
+
+<!-- MAIN TWO-COLUMN -->
+<div id="main">
+  <!-- EDITOR PANEL -->
+  <div id="editor-panel">
+    <div id="add-block-bar">
+      <button onclick="addBlock('code')">+ Code</button>
+      <button onclick="addBlock('text')">+ Text</button>
+      <button onclick="addBlock('check')">+ Check</button>
+      <button onclick="addBlock('heading')">+ Heading</button>
+      <button onclick="addBlock('beam')">+ Beam</button>
+    </div>
+    <div id="blocks-list"></div>
+  </div>
+
+  <!-- OUTPUT PANEL -->
+  <div id="output-panel">
+    <div class="output-page-header" id="print-header"></div>
+    <div id="output-content">
+      <p class="placeholder-text">Add blocks and click &#9654; Run All to see rendered output.</p>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM PANELS -->
+<div id="panels-section">
+  <div class="panel-toggle-bar">
+    <button class="panel-tab active" onclick="switchPanel('scenario', this)">&#9654; Scenario Analysis</button>
+    <button class="panel-tab" onclick="switchPanel('solver', this)">&#9654; Algebraic Solver</button>
+    <button class="panel-tab" onclick="switchPanel('beam', this)">&#9654; Beam Diagram</button>
+  </div>
+
+  <!-- SCENARIO -->
+  <div class="panel-content active" id="panel-scenario">
+    <div class="panel-grid-3">
+      <div class="form-group"><label>Variable Name</label><input id="sc-var" type="text" placeholder="e.g. L"></div>
+      <div class="form-group"><label>Min Value</label><input id="sc-min" type="number" value="1"></div>
+      <div class="form-group"><label>Max Value</label><input id="sc-max" type="number" value="10"></div>
+      <div class="form-group"><label>Steps</label><input id="sc-steps" type="number" value="5" min="2" max="50"></div>
+      <div class="form-group"><label>Result Variables (comma-sep)</label><input id="sc-results" type="text" placeholder="e.g. M_max, delta_max"></div>
+    </div>
+    <button class="panel-run-btn" onclick="runScenario()">Run Scenario</button>
+    <div class="panel-output" id="scenario-output"></div>
+  </div>
+
+  <!-- SOLVER -->
+  <div class="panel-content" id="panel-solver">
+    <div class="panel-grid">
+      <div class="form-group"><label>Equation (e.g. M = w * L**2 / 8)</label><input id="solv-eq" type="text" placeholder="M = w * L**2 / 8"></div>
+      <div class="form-group"><label>Unknown Variable</label><input id="solv-unknown" type="text" placeholder="e.g. L"></div>
+      <div class="form-group"><label>Known Variables (one per line: var=value)</label><textarea id="solv-knowns" rows="3" placeholder="w=10&#10;M=50"></textarea></div>
+    </div>
+    <button class="panel-run-btn" onclick="runSolver()">Solve</button>
+    <div class="panel-output" id="solver-output"></div>
+  </div>
+
+  <!-- BEAM DIAGRAM -->
+  <div class="panel-content" id="panel-beam">
+    <div class="panel-grid-3">
+      <div class="form-group"><label>Span (m)</label><input id="bm-span" type="number" value="5" step="0.1"></div>
+      <div class="form-group"><label>Support Type</label>
+        <select id="bm-support">
+          <option value="simply_supported">Simply Supported</option>
+          <option value="cantilever">Cantilever</option>
+        </select>
+      </div>
+      <div class="form-group"><label>EI (N·m²) — 0 for unit</label><input id="bm-ei" type="number" value="0" step="1000"></div>
+    </div>
+    <div style="margin-top:6px">
+      <div style="display:flex;gap:5px;align-items:center">
+        <strong style="font-size:.8rem">Loads:</strong>
+        <button class="add-load-btn" onclick="addBeamLoad('udl')">+ UDL</button>
+        <button class="add-load-btn" onclick="addBeamLoad('point')">+ Point Load</button>
+      </div>
+      <div id="beam-loads-list" class="beam-loads-list"></div>
+    </div>
+    <button class="panel-run-btn" onclick="plotBeam()">Plot</button>
+    <div class="panel-output" id="beam-output"></div>
+  </div>
+</div>
+
+<!-- HIDDEN FILE INPUTS -->
+<input type="file" id="file-open" accept=".scalc,.json" style="display:none" onchange="handleFileOpen(event)">
+<input type="file" id="file-snippet" accept=".scalc,.json" style="display:none" onchange="handleSnippetFile(event)">
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" style="display:none" onclick="closeModal(event)">
+  <div class="modal-box" id="modal-box" onclick="event.stopPropagation()">
+    <h3 id="modal-title">Insert Snippet Blocks</h3>
+    <div id="modal-body"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-insert" onclick="insertSelectedSnippets()">Insert Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- CDN SCRIPTS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  blocks: [],
+  pyodide: null,
+  pyReady: false,
+  editors: {},
+  dirty: false,
+  snippetBlocks: []
+};
+
+let beamLoadCounter = 0;
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function generateUUID() {
+  return 'bl_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36);
+}
+
+function setStatus(msg, state_) {
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  txt.textContent = msg;
+  dot.className = 'status-dot' + (state_ ? ' ' + state_ : '');
+}
+
+function switchPanel(name, btn) {
+  document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.panel-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ============================================================
+// PYODIDE INIT
+// ============================================================
+async function initPyodide() {
+  setStatus('Loading Pyodide…', 'loading');
+  try {
+    const py = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/' });
+    state.pyodide = py;
+    setStatus('Installing packages…', 'loading');
+    await py.loadPackagesFromImports('import numpy, sympy');
+    await py.runPythonAsync(`import micropip`);
+    await py.runPythonAsync(`await micropip.install(['handcalcs', 'forallpeople'])`);
+    setStatus('Initialising engine…', 'loading');
+
+    await py.runPythonAsync(`
+import json, sys, linecache, importlib.util
+
+_ctx = {}
+
+def init_context():
+    global _ctx
+    _ctx = {}
+    setup_code = """
+import forallpeople as si
+si.environment('default')
+m = si.m
+mm = 1e-3 * si.m
+cm = 1e-2 * si.m
+km = 1e3 * si.m
+N = si.N
+kN = 1e3 * si.N
+MN = 1e6 * si.N
+Pa = si.Pa
+kPa = 1e3 * si.Pa
+MPa = 1e6 * si.Pa
+GPa = 1e9 * si.Pa
+kg = si.kg
+t = 1e3 * si.kg
+kNm = 1e3 * si.N * si.m
+MNm = 1e6 * si.N * si.m
+kNm2 = 1e3 * si.N * si.m * si.m
+from math import *
+import numpy as np
+import sympy as sp
+"""
+    exec(setup_code, _ctx)
+    return "ok"
+
+def run_block(code_str, block_id):
+    global _ctx
+    func_lines = ['def _calc():']
+    for line in code_str.strip().split('\\n'):
+        func_lines.append('    ' + (line if line.strip() else '    pass'))
+    func_lines.append('    return locals()')
+    src = '\\n'.join(func_lines) + '\\n'
+    filepath = f'/tmp/block_{block_id}.py'
+    with open(filepath, 'w') as f:
+        f.write(src)
+    linecache.cache[filepath] = (len(src), None, [l + '\\n' for l in src.splitlines()], filepath)
+    code_obj = compile(src, filepath, 'exec')
+    module_dict = dict(_ctx)
+    exec(code_obj, module_dict)
+    from handcalcs.decorator import handcalc
+    decorated = handcalc(precision=3)(module_dict['_calc'])
+    latex_str, result = decorated()
+    new_vars = {k: v for k, v in result.items() if not k.startswith('_') and k != '_calc'}
+    _ctx.update(new_vars)
+    var_reprs = {}
+    for k, v in new_vars.items():
+        try:
+            var_reprs[k] = float(v)
+        except:
+            var_reprs[k] = str(v)
+    return json.dumps({'latex': latex_str, 'vars': var_reprs})
+
+def run_check_block(code_str, block_id, check_var, limit, pass_if):
+    global _ctx
+    result_json = run_block(code_str, block_id)
+    result = json.loads(result_json)
+    val = None
+    if check_var in _ctx:
+        try:
+            val = float(_ctx[check_var])
+        except:
+            val = str(_ctx[check_var])
+    elif check_var in result.get('vars', {}):
+        val = result['vars'][check_var]
+    if val is not None and isinstance(val, (int, float)):
+        if pass_if == 'less_than':
+            passed = val < float(limit)
+        else:
+            passed = val > float(limit)
+        result['check'] = {'var': check_var, 'value': val, 'limit': float(limit), 'passed': passed, 'pass_if': pass_if}
+    return json.dumps(result)
+
+def solve_unknown(equation_str, knowns_json, unknown_name):
+    import sympy as sp
+    try:
+        knowns = json.loads(knowns_json)
+        all_names = list(knowns.keys()) + [unknown_name]
+        syms = {n: sp.Symbol(n) for n in all_names}
+        lhs, rhs = equation_str.split('=', 1)
+        expr = sp.sympify(rhs.strip(), locals=syms) - sp.sympify(lhs.strip(), locals=syms)
+        for k, v in knowns.items():
+            expr = expr.subs(syms[k], float(v))
+        solutions = sp.solve(expr, syms[unknown_name])
+        latex_sols = [sp.latex(s) for s in solutions]
+        return json.dumps({'solutions': [str(s) for s in solutions], 'latex': latex_sols})
+    except Exception as e:
+        return json.dumps({'error': str(e)})
+
+def run_scenario(blocks_json, var_name, values_json, result_vars_json):
+    global _ctx
+    blocks = json.loads(blocks_json)
+    values = json.loads(values_json)
+    result_vars = json.loads(result_vars_json)
+    rows = []
+    for val in values:
+        init_context()
+        _ctx[var_name] = float(val)
+        row = {var_name: val}
+        for block in blocks:
+            if block['type'] in ('code', 'check'):
+                try:
+                    run_block(block['content'], block['id'])
+                    for rv in result_vars:
+                        if rv in _ctx:
+                            try:
+                                row[rv] = float(_ctx[rv])
+                            except:
+                                row[rv] = str(_ctx[rv])
+                except:
+                    pass
+        rows.append(row)
+    return json.dumps(rows)
+
+def compute_beam(span_val, loads_json, ei_val, support_type):
+    import numpy as np
+    loads = json.loads(loads_json)
+    L = float(span_val)
+    EI = float(ei_val) if float(ei_val) != 0 else 1.0
+    n = 500
+    x = np.linspace(0, L, n)
+    V = np.zeros(n)
+    M = np.zeros(n)
+    if support_type == 'simply_supported':
+        Ra = 0.0
+        for load in loads:
+            if load['type'] == 'udl':
+                a = float(load.get('a', 0))
+                b = float(load.get('b', L))
+                w = float(load['w'])
+                F = w * (b - a)
+                xf = a + (b - a) / 2
+                Ra += F * (L - xf) / L
+            elif load['type'] == 'point':
+                P = float(load['P'])
+                a = float(load['a'])
+                Ra += P * (L - a) / L
+        for i, xi in enumerate(x):
+            vi = Ra
+            mi = Ra * xi
+            for load in loads:
+                if load['type'] == 'udl':
+                    a = float(load.get('a', 0))
+                    b = float(load.get('b', L))
+                    w = float(load['w'])
+                    if xi > a:
+                        ov = min(xi, b) - a
+                        vi -= w * ov
+                        mi -= w * ov * (xi - a - ov / 2)
+                elif load['type'] == 'point':
+                    P = float(load['P'])
+                    a = float(load['a'])
+                    if xi > a:
+                        vi -= P
+                        mi -= P * (xi - a)
+            V[i] = vi
+            M[i] = mi
+    elif support_type == 'cantilever':
+        for i, xi in enumerate(x):
+            vi = 0.0
+            mi = 0.0
+            for load in loads:
+                if load['type'] == 'udl':
+                    a = float(load.get('a', 0))
+                    b = float(load.get('b', L))
+                    w = float(load['w'])
+                    if xi < b:
+                        start = max(xi, a)
+                        if start < b:
+                            ov = b - start
+                            vi += w * ov
+                            mi += w * ov * (start - xi + ov / 2)
+                elif load['type'] == 'point':
+                    P = float(load['P'])
+                    a = float(load['a'])
+                    if xi <= a:
+                        vi += P
+                        mi += P * (a - xi)
+            V[i] = vi
+            M[i] = mi
+    dx = x[1] - x[0]
+    theta = np.zeros(n)
+    delta = np.zeros(n)
+    for i in range(1, n):
+        theta[i] = theta[i-1] + M[i-1] / EI * dx
+    if support_type == 'simply_supported':
+        delta_trial = np.zeros(n)
+        for i in range(1, n):
+            delta_trial[i] = delta_trial[i-1] + theta[i-1] * dx
+        C1 = -delta_trial[-1] / L
+        theta = theta + C1
+    for i in range(1, n):
+        delta[i] = delta[i-1] + theta[i-1] * dx
+    return json.dumps({'x': x.tolist(), 'V': V.tolist(), 'M': M.tolist(), 'delta': delta.tolist()})
+
+init_context()
+`);
+
+    state.pyReady = true;
+    setStatus('Python Ready', 'ready');
+  } catch(e) {
+    setStatus('Python Error: ' + e.message, 'error');
+    console.error(e);
+  }
+}
+
+// ============================================================
+// BLOCK MANAGEMENT
+// ============================================================
+function addBlock(type) {
+  const id = generateUUID();
+  const block = { id, type };
+  if (type === 'code') { block.content = '# Enter Python calculations\na = 1\nb = 2\nc = a + b'; }
+  else if (type === 'text') { block.content = 'Enter text or notes here.'; }
+  else if (type === 'heading') { block.content = 'Section Heading'; block.level = '1'; }
+  else if (type === 'check') { block.content = '# Check calculation\nutil = 0.85'; block.check_var = 'util'; block.limit = '1.0'; block.pass_if = 'less_than'; }
+  else if (type === 'beam') { block.span = '5'; block.support = 'simply_supported'; block.ei = '0'; block.loads = []; }
+  state.blocks.push(block);
+  state.dirty = true;
+  renderEditorList();
+  setTimeout(() => {
+    const el = document.getElementById('block-' + id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 50);
+}
+
+function deleteBlock(id) {
+  state.blocks = state.blocks.filter(b => b.id !== id);
+  if (state.editors[id]) { delete state.editors[id]; }
+  state.dirty = true;
+  renderEditorList();
+}
+
+function moveBlock(id, dir) {
+  const idx = state.blocks.findIndex(b => b.id === id);
+  if (idx === -1) return;
+  if (dir === 'up' && idx === 0) return;
+  if (dir === 'down' && idx === state.blocks.length - 1) return;
+  const swap = dir === 'up' ? idx - 1 : idx + 1;
+  [state.blocks[idx], state.blocks[swap]] = [state.blocks[swap], state.blocks[idx]];
+  state.dirty = true;
+  renderEditorList();
+}
+
+function getBlockContent(id) {
+  if (state.editors[id]) return state.editors[id].getValue();
+  const ta = document.getElementById('ta-' + id);
+  if (ta) return ta.value;
+  const inp = document.getElementById('inp-' + id);
+  if (inp) return inp.value;
+  const block = state.blocks.find(b => b.id === id);
+  return block ? (block.content || '') : '';
+}
+
+function syncBlockData(id) {
+  const block = state.blocks.find(b => b.id === id);
+  if (!block) return;
+  if (state.editors[id]) { block.content = state.editors[id].getValue(); }
+  if (block.type === 'text') { const ta = document.getElementById('ta-' + id); if(ta) block.content = ta.value; }
+  if (block.type === 'heading') {
+    const inp = document.getElementById('inp-' + id); if(inp) block.content = inp.value;
+    const sel = document.getElementById('hlv-' + id); if(sel) block.level = sel.value;
+  }
+  if (block.type === 'check') {
+    const cv = document.getElementById('cv-' + id); if(cv) block.check_var = cv.value;
+    const lm = document.getElementById('lm-' + id); if(lm) block.limit = lm.value;
+    const pi = document.getElementById('pi-' + id); if(pi) block.pass_if = pi.value;
+  }
+  if (block.type === 'beam') {
+    const sp = document.getElementById('bk-span-' + id); if(sp) block.span = sp.value;
+    const su = document.getElementById('bk-sup-' + id); if(su) block.support = su.value;
+    const ei = document.getElementById('bk-ei-' + id); if(ei) block.ei = ei.value;
+  }
+}
+
+function renderEditorList() {
+  // Sync all before re-render
+  state.blocks.forEach(b => syncBlockData(b.id));
+
+  const container = document.getElementById('blocks-list');
+  container.innerHTML = '';
+
+  state.blocks.forEach((block, idx) => {
+    const card = document.createElement('div');
+    card.className = 'block-card';
+    card.id = 'block-' + block.id;
+
+    const typeLabels = { code: 'Code', text: 'Text', heading: 'Heading', check: 'Check', beam: 'Beam' };
+    const hdr = document.createElement('div');
+    hdr.className = 'block-header';
+    hdr.innerHTML = `
+      <span class="block-type-label">${typeLabels[block.type] || block.type}</span>
+      <span class="spacer"></span>
+      <span class="block-controls">
+        <button title="Move Up" onclick="moveBlock('${block.id}','up')">&#9650;</button>
+        <button title="Move Down" onclick="moveBlock('${block.id}','down')">&#9660;</button>
+        <button title="Delete" onclick="deleteBlock('${block.id}')" style="color:#dc2626">&#10005;</button>
+      </span>`;
+    card.appendChild(hdr);
+
+    const body = document.createElement('div');
+    body.className = 'block-body';
+
+    if (block.type === 'code') {
+      const wrapper = document.createElement('div');
+      wrapper.id = 'cm-' + block.id;
+      body.appendChild(wrapper);
+      card.appendChild(body);
+      container.appendChild(card);
+      const cm = CodeMirror(wrapper, {
+        value: block.content || '',
+        mode: 'python',
+        lineNumbers: true,
+        indentUnit: 4,
+        tabSize: 4,
+        viewportMargin: Infinity,
+        extraKeys: { Tab: cm => cm.execCommand('indentMore') }
+      });
+      state.editors[block.id] = cm;
+      return;
+    }
+
+    if (block.type === 'text') {
+      body.innerHTML = `<textarea id="ta-${block.id}" placeholder="Enter notes/text…">${escapeHtml(block.content || '')}</textarea>`;
+    }
+
+    if (block.type === 'heading') {
+      body.innerHTML = `
+        <div class="heading-level-row">
+          <label>Level:
+            <select id="hlv-${block.id}" onchange="syncBlockData('${block.id}')">
+              <option value="1" ${block.level==='1'?'selected':''}>H1</option>
+              <option value="2" ${block.level==='2'?'selected':''}>H2</option>
+              <option value="3" ${block.level==='3'?'selected':''}>H3</option>
+            </select>
+          </label>
+        </div>
+        <input type="text" id="inp-${block.id}" value="${escapeHtml(block.content||'')}" placeholder="Heading text…">`;
+    }
+
+    if (block.type === 'check') {
+      const wrapper = document.createElement('div');
+      wrapper.id = 'cm-' + block.id;
+      body.appendChild(wrapper);
+      const checkFields = document.createElement('div');
+      checkFields.className = 'check-fields';
+      checkFields.innerHTML = `
+        <label>Check Variable<input type="text" id="cv-${block.id}" value="${escapeHtml(block.check_var||'')}" placeholder="var_name"></label>
+        <label>Limit<input type="number" id="lm-${block.id}" value="${escapeHtml(block.limit||'1.0')}" step="any"></label>
+        <label>Pass If
+          <select id="pi-${block.id}">
+            <option value="less_than" ${block.pass_if==='less_than'?'selected':''}>&#60; limit</option>
+            <option value="greater_than" ${block.pass_if==='greater_than'?'selected':''}>&#62; limit</option>
+          </select>
+        </label>`;
+      body.appendChild(checkFields);
+      card.appendChild(body);
+      container.appendChild(card);
+      const cm = CodeMirror(wrapper, {
+        value: block.content || '',
+        mode: 'python',
+        lineNumbers: true,
+        indentUnit: 4,
+        tabSize: 4,
+        viewportMargin: Infinity,
+        extraKeys: { Tab: cm => cm.execCommand('indentMore') }
+      });
+      state.editors[block.id] = cm;
+      return;
+    }
+
+    if (block.type === 'beam') {
+      body.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:5px">
+          <label style="font-size:.75rem;color:var(--muted);display:flex;flex-direction:column;gap:2px">Span (m)
+            <input type="number" id="bk-span-${block.id}" value="${block.span||5}" step="0.1">
+          </label>
+          <label style="font-size:.75rem;color:var(--muted);display:flex;flex-direction:column;gap:2px">Support
+            <select id="bk-sup-${block.id}">
+              <option value="simply_supported" ${block.support==='simply_supported'?'selected':''}>Simply Supported</option>
+              <option value="cantilever" ${block.support==='cantilever'?'selected':''}>Cantilever</option>
+            </select>
+          </label>
+          <label style="font-size:.75rem;color:var(--muted);display:flex;flex-direction:column;gap:2px">EI (N·m²)
+            <input type="number" id="bk-ei-${block.id}" value="${block.ei||0}">
+          </label>
+        </div>
+        <div>
+          <div style="display:flex;gap:5px;align-items:center;margin-bottom:4px">
+            <span style="font-size:.75rem;color:var(--muted);font-weight:600">LOADS</span>
+            <button class="add-load-btn" onclick="addBeamLoadToBlock('${block.id}','udl')">+ UDL</button>
+            <button class="add-load-btn" onclick="addBeamLoadToBlock('${block.id}','point')">+ Point</button>
+          </div>
+          <div id="bk-loads-${block.id}" class="beam-loads-list">${renderBeamLoadsHTML(block)}</div>
+        </div>`;
+    }
+
+    card.appendChild(body);
+    container.appendChild(card);
+  });
+}
+
+function renderBeamLoadsHTML(block) {
+  if (!block.loads || block.loads.length === 0) return '<span style="font-size:.75rem;color:var(--muted)">No loads added</span>';
+  return block.loads.map((ld, i) => {
+    if (ld.type === 'udl') {
+      return `<div class="beam-load-row">
+        <span style="font-size:.72rem;color:var(--muted);min-width:30px">UDL</span>
+        w=<input type="number" value="${ld.w||0}" step="0.1" style="width:55px" onchange="updateBeamLoad('${block.id}',${i},'w',this.value)"> kN/m
+        a=<input type="number" value="${ld.a||0}" step="0.1" style="width:45px" onchange="updateBeamLoad('${block.id}',${i},'a',this.value)">
+        b=<input type="number" value="${ld.b||block.span||5}" step="0.1" style="width:45px" onchange="updateBeamLoad('${block.id}',${i},'b',this.value)">
+        <button onclick="removeBeamLoadFromBlock('${block.id}',${i})">&#10005;</button>
+      </div>`;
+    } else {
+      return `<div class="beam-load-row">
+        <span style="font-size:.72rem;color:var(--muted);min-width:30px">PT</span>
+        P=<input type="number" value="${ld.P||0}" step="0.1" style="width:55px" onchange="updateBeamLoad('${block.id}',${i},'P',this.value)"> kN
+        a=<input type="number" value="${ld.a||0}" step="0.1" style="width:45px" onchange="updateBeamLoad('${block.id}',${i},'a',this.value)">
+        <button onclick="removeBeamLoadFromBlock('${block.id}',${i})">&#10005;</button>
+      </div>`;
+    }
+  }).join('');
+}
+
+function addBeamLoadToBlock(blockId, type) {
+  const block = state.blocks.find(b => b.id === blockId);
+  if (!block) return;
+  if (!block.loads) block.loads = [];
+  if (type === 'udl') block.loads.push({ type: 'udl', w: 10, a: 0, b: parseFloat(block.span)||5 });
+  else block.loads.push({ type: 'point', P: 10, a: (parseFloat(block.span)||5)/2 });
+  const container = document.getElementById('bk-loads-' + blockId);
+  if (container) container.innerHTML = renderBeamLoadsHTML(block);
+}
+
+function removeBeamLoadFromBlock(blockId, idx) {
+  const block = state.blocks.find(b => b.id === blockId);
+  if (!block || !block.loads) return;
+  block.loads.splice(idx, 1);
+  const container = document.getElementById('bk-loads-' + blockId);
+  if (container) container.innerHTML = renderBeamLoadsHTML(block);
+}
+
+function updateBeamLoad(blockId, idx, field, val) {
+  const block = state.blocks.find(b => b.id === blockId);
+  if (!block || !block.loads || !block.loads[idx]) return;
+  block.loads[idx][field] = parseFloat(val);
+}
+
+// ============================================================
+// RUN ALL BLOCKS
+// ============================================================
+async function runAll() {
+  if (!state.pyReady) { alert('Python is not ready yet. Please wait.'); return; }
+
+  // Sync all block data
+  state.blocks.forEach(b => syncBlockData(b.id));
+
+  setStatus('Running…', 'loading');
+  document.getElementById('output-content').innerHTML = '';
+
+  // Reset Python context
+  try {
+    await state.pyodide.runPythonAsync('init_context()');
+  } catch(e) {
+    console.error('init_context error', e);
+  }
+
+  const results = [];
+
+  for (const block of state.blocks) {
+    if (block.type === 'heading' || block.type === 'text' || block.type === 'beam') {
+      results.push({ id: block.id, type: block.type, block });
+      if (block.type === 'beam') {
+        try {
+          const loadsJson = JSON.stringify(block.loads || []);
+          const eiVal = block.ei || '0';
+          const resJson = await state.pyodide.runPythonAsync(
+            `compute_beam(${JSON.stringify(block.span||'5')}, ${JSON.stringify(loadsJson)}, ${JSON.stringify(eiVal)}, ${JSON.stringify(block.support||'simply_supported')})`
+          );
+          results[results.length-1].beamData = JSON.parse(resJson);
+        } catch(e) {
+          results[results.length-1].error = e.message;
+        }
+      }
+      continue;
+    }
+
+    if (block.type === 'code') {
+      try {
+        const code = state.editors[block.id] ? state.editors[block.id].getValue() : (block.content || '');
+        const r = await state.pyodide.runPythonAsync(`run_block(${JSON.stringify(code)}, ${JSON.stringify(block.id)})`);
+        const parsed = JSON.parse(r);
+        results.push({ id: block.id, type: 'code', latex: parsed.latex, vars: parsed.vars });
+      } catch(e) {
+        results.push({ id: block.id, type: 'code', error: e.message });
+      }
+    }
+
+    if (block.type === 'check') {
+      try {
+        const code = state.editors[block.id] ? state.editors[block.id].getValue() : (block.content || '');
+        const r = await state.pyodide.runPythonAsync(
+          `run_check_block(${JSON.stringify(code)}, ${JSON.stringify(block.id)}, ${JSON.stringify(block.check_var||'')}, ${JSON.stringify(block.limit||'1.0')}, ${JSON.stringify(block.pass_if||'less_than')})`
+        );
+        const parsed = JSON.parse(r);
+        results.push({ id: block.id, type: 'check', latex: parsed.latex, vars: parsed.vars, check: parsed.check });
+      } catch(e) {
+        results.push({ id: block.id, type: 'check', error: e.message });
+      }
+    }
+  }
+
+  renderOutput(results);
+  setStatus('Python Ready', 'ready');
+}
+
+// ============================================================
+// RENDER OUTPUT
+// ============================================================
+function renderOutput(results) {
+  updatePrintHeader();
+  const container = document.getElementById('output-content');
+  let html = '';
+
+  for (const res of results) {
+    html += `<div class="out-block" id="out-${res.id}">`;
+
+    if (res.type === 'heading') {
+      const lvl = res.block.level || '1';
+      const text = escapeHtml(res.block.content || '');
+      html += `<div class="out-heading-${lvl}">${text}</div>`;
+    }
+
+    else if (res.type === 'text') {
+      html += `<div class="out-text">${escapeHtml(res.block.content || '')}</div>`;
+    }
+
+    else if (res.type === 'code') {
+      if (res.error) {
+        html += `<div class="out-error">Error: ${escapeHtml(res.error)}</div>`;
+      } else {
+        html += `<div class="out-latex">\\[${res.latex}\\]</div>`;
+      }
+    }
+
+    else if (res.type === 'check') {
+      if (res.error) {
+        html += `<div class="out-error">Error: ${escapeHtml(res.error)}</div>`;
+      } else {
+        html += `<div class="out-latex">\\[${res.latex}\\]</div>`;
+        if (res.check) {
+          const c = res.check;
+          const passed = c.passed;
+          const sym = c.pass_if === 'less_than' ? '<' : '>';
+          const val = typeof c.value === 'number' ? c.value.toFixed(4) : c.value;
+          const limitStr = typeof c.limit === 'number' ? c.limit.toFixed(4) : c.limit;
+          html += `<div class="check-badge ${passed ? 'pass' : 'fail'}">
+            ${passed ? '&#10003; PASS' : '&#10007; FAIL'}: ${escapeHtml(c.var)} = ${val} ${sym} ${limitStr}
+          </div>`;
+        }
+      }
+    }
+
+    else if (res.type === 'beam') {
+      html += `<div id="beam-out-${res.id}" style="height:300px"></div>`;
+    }
+
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+
+  // Plot beam blocks
+  for (const res of results) {
+    if (res.type === 'beam' && res.beamData) {
+      plotBeamInOutput(res.id, res.beamData);
+    }
+  }
+
+  // Typeset MathJax
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise([container]).catch(e => console.error('MathJax error', e));
+  }
+}
+
+function plotBeamInOutput(blockId, data) {
+  const el = document.getElementById('beam-out-' + blockId);
+  if (!el || !data) return;
+  const { x, V, M, delta } = data;
+  Plotly.newPlot(el, [
+    { x, y: V, name: 'Shear (kN)', line: { color: '#2563eb' }, yaxis: 'y1', xaxis: 'x1' },
+    { x, y: M, name: 'Moment (kNm)', line: { color: '#dc2626' }, yaxis: 'y2', xaxis: 'x2' },
+    { x, y: delta.map(d => d * 1000), name: 'Deflection (mm)', line: { color: '#15803d' }, yaxis: 'y3', xaxis: 'x3' }
+  ], {
+    grid: { rows: 1, columns: 3, pattern: 'independent' },
+    height: 280,
+    margin: { t: 30, b: 40, l: 50, r: 20 },
+    title: { text: 'Beam Diagrams', font: { size: 13 } },
+    xaxis: { title: 'x (m)' }, xaxis2: { title: 'x (m)' }, xaxis3: { title: 'x (m)' },
+    yaxis: { title: 'V (kN)' }, yaxis2: { title: 'M (kNm)' }, yaxis3: { title: '\u03B4 (mm)' },
+    showlegend: false
+  }, { responsive: true });
+}
+
+// ============================================================
+// FILE OPERATIONS
+// ============================================================
+function collectDocData() {
+  state.blocks.forEach(b => syncBlockData(b.id));
+  return {
+    version: 1,
+    title: document.getElementById('doc-title').value,
+    engineer: document.getElementById('doc-engineer').value,
+    project: document.getElementById('doc-project').value,
+    date: document.getElementById('doc-date').value,
+    blocks: state.blocks
+  };
+}
+
+function saveCalc() {
+  const data = collectDocData();
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const title = data.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'calculation';
+  a.download = title + '.scalc';
+  a.click();
+  URL.revokeObjectURL(url);
+  state.dirty = false;
+}
+
+function openCalc() {
+  document.getElementById('file-open').value = '';
+  document.getElementById('file-open').click();
+}
+
+function handleFileOpen(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      loadDocData(data);
+    } catch(err) {
+      alert('Failed to load file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function loadDocData(data) {
+  // Destroy existing editors
+  Object.keys(state.editors).forEach(id => { if (state.editors[id]) state.editors[id].toTextArea && state.editors[id].toTextArea(); });
+  state.editors = {};
+  state.blocks = data.blocks || [];
+  document.getElementById('doc-title').value = data.title || '';
+  document.getElementById('doc-engineer').value = data.engineer || '';
+  document.getElementById('doc-project').value = data.project || '';
+  document.getElementById('doc-date').value = data.date || '';
+  state.dirty = false;
+  renderEditorList();
+  document.getElementById('output-content').innerHTML = '<p class="placeholder-text">File loaded. Click &#9654; Run All to render output.</p>';
+}
+
+function newCalc() {
+  if (state.dirty && !confirm('Unsaved changes. Create new document?')) return;
+  Object.keys(state.editors).forEach(id => { try { state.editors[id].toTextArea && state.editors[id].toTextArea(); } catch(e){} });
+  state.editors = {};
+  state.blocks = [];
+  document.getElementById('doc-title').value = 'Untitled Calculation';
+  document.getElementById('doc-engineer').value = '';
+  document.getElementById('doc-project').value = '';
+  document.getElementById('doc-date').value = '';
+  state.dirty = false;
+  renderEditorList();
+  document.getElementById('output-content').innerHTML = '<p class="placeholder-text">Add blocks and click &#9654; Run All to see rendered output.</p>';
+}
+
+// ============================================================
+// SNIPPET INSERT
+// ============================================================
+function insertSnippet() {
+  document.getElementById('file-snippet').value = '';
+  document.getElementById('file-snippet').click();
+}
+
+function handleSnippetFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const codeBlocks = (data.blocks || []).filter(b => b.type === 'code' || b.type === 'check' || b.type === 'text' || b.type === 'heading');
+      if (codeBlocks.length === 0) { alert('No insertable blocks found in snippet file.'); return; }
+      state.snippetBlocks = codeBlocks;
+      showSnippetModal(codeBlocks);
+    } catch(err) {
+      alert('Failed to load snippet file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function showSnippetModal(blocks) {
+  const body = document.getElementById('modal-body');
+  body.innerHTML = blocks.map((b, i) => {
+    const preview = (b.content || '').substring(0, 60).replace(/\n/g, ' ');
+    return `<div class="modal-block-item" onclick="toggleSnippetCheck(${i})">
+      <input type="checkbox" id="snip-${i}" onchange="event.stopPropagation()">
+      <div>
+        <strong style="font-size:.8rem;text-transform:uppercase;color:var(--muted)">${b.type}</strong><br>
+        <span style="font-size:.82rem">${escapeHtml(preview)}${b.content&&b.content.length>60?'…':''}</span>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('modal-title').textContent = `Insert Snippet Blocks (${blocks.length} found)`;
+  document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+function toggleSnippetCheck(i) {
+  const cb = document.getElementById('snip-' + i);
+  if (cb) cb.checked = !cb.checked;
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').style.display = 'none';
+}
+
+function insertSelectedSnippets() {
+  const selected = state.snippetBlocks.filter((b, i) => {
+    const cb = document.getElementById('snip-' + i);
+    return cb && cb.checked;
+  });
+  if (selected.length === 0) { alert('No blocks selected.'); return; }
+  selected.forEach(b => {
+    const newBlock = Object.assign({}, b, { id: generateUUID() });
+    state.blocks.push(newBlock);
+  });
+  state.dirty = true;
+  document.getElementById('modal-overlay').style.display = 'none';
+  renderEditorList();
+}
+
+// ============================================================
+// PRINT / PDF
+// ============================================================
+function printPDF() {
+  updatePrintHeader();
+  window.print();
+}
+
+function updatePrintHeader() {
+  const hdr = document.getElementById('print-header');
+  const title = document.getElementById('doc-title').value;
+  const eng = document.getElementById('doc-engineer').value;
+  const proj = document.getElementById('doc-project').value;
+  const date = document.getElementById('doc-date').value;
+  hdr.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div>
+        <div style="font-size:1.4rem;font-weight:700;color:var(--navy);font-family:system-ui,sans-serif">${escapeHtml(title)}</div>
+        ${proj ? `<div style="font-size:.9rem;color:var(--muted);font-family:system-ui,sans-serif">Project: ${escapeHtml(proj)}</div>` : ''}
+      </div>
+      <div style="text-align:right;font-family:system-ui,sans-serif;font-size:.82rem;color:var(--muted)">
+        ${eng ? `Engineer: ${escapeHtml(eng)}<br>` : ''}
+        ${date ? `Date: ${escapeHtml(date)}` : ''}
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// SCENARIO ANALYSIS
+// ============================================================
+async function runScenario() {
+  if (!state.pyReady) { alert('Python not ready.'); return; }
+  const varName = document.getElementById('sc-var').value.trim();
+  const minVal = parseFloat(document.getElementById('sc-min').value);
+  const maxVal = parseFloat(document.getElementById('sc-max').value);
+  const steps = parseInt(document.getElementById('sc-steps').value);
+  const resultVarsStr = document.getElementById('sc-results').value.trim();
+  const resultVars = resultVarsStr ? resultVarsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  if (!varName) { alert('Enter a variable name.'); return; }
+  if (steps < 2) { alert('Steps must be at least 2.'); return; }
+
+  // Build values array
+  const values = [];
+  for (let i = 0; i < steps; i++) {
+    values.push(minVal + (maxVal - minVal) * i / (steps - 1));
+  }
+
+  // Sync blocks
+  state.blocks.forEach(b => syncBlockData(b.id));
+  const blocksData = state.blocks.map(b => ({
+    id: b.id, type: b.type,
+    content: state.editors[b.id] ? state.editors[b.id].getValue() : (b.content || '')
+  }));
+
+  const outputEl = document.getElementById('scenario-output');
+  outputEl.innerHTML = '<em>Running scenario…</em>';
+
+  try {
+    const r = await state.pyodide.runPythonAsync(
+      `run_scenario(${JSON.stringify(JSON.stringify(blocksData))}, ${JSON.stringify(varName)}, ${JSON.stringify(JSON.stringify(values))}, ${JSON.stringify(JSON.stringify(resultVars))})`
+    );
+    const rows = JSON.parse(r);
+    renderScenarioOutput(rows, varName, resultVars);
+  } catch(e) {
+    outputEl.innerHTML = `<div class="out-error">Scenario error: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderScenarioOutput(rows, varName, resultVars) {
+  const outputEl = document.getElementById('scenario-output');
+  const allCols = [varName, ...resultVars];
+
+  let tableHtml = '<table class="scenario-table"><thead><tr>';
+  allCols.forEach(c => { tableHtml += `<th>${escapeHtml(c)}</th>`; });
+  tableHtml += '</tr></thead><tbody>';
+  rows.forEach(row => {
+    tableHtml += '<tr>';
+    allCols.forEach(c => {
+      const v = row[c];
+      const disp = v !== undefined ? (typeof v === 'number' ? v.toFixed(4) : v) : '—';
+      tableHtml += `<td>${escapeHtml(String(disp))}</td>`;
+    });
+    tableHtml += '</tr>';
+  });
+  tableHtml += '</tbody></table>';
+
+  outputEl.innerHTML = tableHtml + '<div id="scenario-chart" style="height:220px;margin-top:8px"></div>';
+
+  // Plot with Plotly
+  const xVals = rows.map(r => r[varName]);
+  const traces = resultVars.map(rv => ({
+    x: xVals,
+    y: rows.map(r => (typeof r[rv] === 'number' ? r[rv] : null)),
+    name: rv,
+    mode: 'lines+markers',
+    type: 'scatter'
+  }));
+  if (traces.length > 0) {
+    Plotly.newPlot('scenario-chart', traces, {
+      margin: { t: 20, b: 40, l: 50, r: 20 },
+      xaxis: { title: varName },
+      yaxis: { title: resultVars.join(', ') },
+      height: 200,
+      showlegend: true
+    }, { responsive: true });
+  }
+}
+
+// ============================================================
+// ALGEBRAIC SOLVER
+// ============================================================
+async function runSolver() {
+  if (!state.pyReady) { alert('Python not ready.'); return; }
+  const eq = document.getElementById('solv-eq').value.trim();
+  const unknownName = document.getElementById('solv-unknown').value.trim();
+  const knownsRaw = document.getElementById('solv-knowns').value.trim();
+
+  if (!eq) { alert('Enter an equation.'); return; }
+  if (!unknownName) { alert('Enter the unknown variable name.'); return; }
+
+  const knowns = {};
+  knownsRaw.split('\n').forEach(line => {
+    const parts = line.split('=');
+    if (parts.length === 2) {
+      const k = parts[0].trim();
+      const v = parseFloat(parts[1].trim());
+      if (k && !isNaN(v)) knowns[k] = v;
+    }
+  });
+
+  const outputEl = document.getElementById('solver-output');
+  outputEl.innerHTML = '<em>Solving…</em>';
+
+  try {
+    const r = await state.pyodide.runPythonAsync(
+      `solve_unknown(${JSON.stringify(eq)}, ${JSON.stringify(JSON.stringify(knowns))}, ${JSON.stringify(unknownName)})`
+    );
+    const parsed = JSON.parse(r);
+    if (parsed.error) {
+      outputEl.innerHTML = `<div class="out-error">Solver error: ${escapeHtml(parsed.error)}</div>`;
+    } else {
+      let html = `<div class="solver-result">`;
+      if (parsed.latex && parsed.latex.length > 0) {
+        html += `<strong>${escapeHtml(unknownName)} = </strong>`;
+        parsed.latex.forEach((ltx, i) => {
+          html += `<span>\\(${ltx}\\)</span>`;
+          if (i < parsed.latex.length - 1) html += ' or ';
+        });
+        if (parsed.solutions && parsed.solutions.length > 0) {
+          html += `<br><small style="font-family:monospace;color:var(--muted)">Numeric: ${parsed.solutions.map(s => escapeHtml(s)).join(', ')}</small>`;
+        }
+      } else {
+        html += 'No solution found.';
+      }
+      html += '</div>';
+      outputEl.innerHTML = html;
+      if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([outputEl]).catch(e => console.error(e));
+      }
+    }
+  } catch(e) {
+    outputEl.innerHTML = `<div class="out-error">Solver error: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ============================================================
+// BEAM DIAGRAM PANEL
+// ============================================================
+let panelBeamLoads = [];
+
+function addBeamLoad(type) {
+  const span = parseFloat(document.getElementById('bm-span').value) || 5;
+  if (type === 'udl') panelBeamLoads.push({ type: 'udl', w: 10, a: 0, b: span });
+  else panelBeamLoads.push({ type: 'point', P: 10, a: span / 2 });
+  renderPanelBeamLoads();
+}
+
+function renderPanelBeamLoads() {
+  const container = document.getElementById('beam-loads-list');
+  if (!container) return;
+  if (panelBeamLoads.length === 0) {
+    container.innerHTML = '<span style="font-size:.75rem;color:var(--muted)">No loads added</span>';
+    return;
+  }
+  container.innerHTML = panelBeamLoads.map((ld, i) => {
+    if (ld.type === 'udl') {
+      return `<div class="beam-load-row">
+        <span style="font-size:.72rem;min-width:30px;color:var(--muted)">UDL</span>
+        w=<input type="number" value="${ld.w}" step="0.1" onchange="panelBeamLoads[${i}].w=parseFloat(this.value)"> kN/m
+        a=<input type="number" value="${ld.a}" step="0.1" onchange="panelBeamLoads[${i}].a=parseFloat(this.value)">
+        b=<input type="number" value="${ld.b}" step="0.1" onchange="panelBeamLoads[${i}].b=parseFloat(this.value)">
+        <button onclick="removePanelBeamLoad(${i})">&#10005;</button>
+      </div>`;
+    } else {
+      return `<div class="beam-load-row">
+        <span style="font-size:.72rem;min-width:30px;color:var(--muted)">PT</span>
+        P=<input type="number" value="${ld.P}" step="0.1" onchange="panelBeamLoads[${i}].P=parseFloat(this.value)"> kN
+        a=<input type="number" value="${ld.a}" step="0.1" onchange="panelBeamLoads[${i}].a=parseFloat(this.value)">
+        <button onclick="removePanelBeamLoad(${i})">&#10005;</button>
+      </div>`;
+    }
+  }).join('');
+}
+
+function removePanelBeamLoad(i) {
+  panelBeamLoads.splice(i, 1);
+  renderPanelBeamLoads();
+}
+
+async function plotBeam() {
+  if (!state.pyReady) { alert('Python not ready.'); return; }
+  const span = document.getElementById('bm-span').value || '5';
+  const support = document.getElementById('bm-support').value;
+  const ei = document.getElementById('bm-ei').value || '0';
+  const loadsJson = JSON.stringify(panelBeamLoads);
+  const outputEl = document.getElementById('beam-output');
+  outputEl.innerHTML = '<div id="beam-panel-chart" style="height:280px"></div>';
+
+  try {
+    const r = await state.pyodide.runPythonAsync(
+      `compute_beam(${JSON.stringify(span)}, ${JSON.stringify(loadsJson)}, ${JSON.stringify(ei)}, ${JSON.stringify(support)})`
+    );
+    const data = JSON.parse(r);
+    const { x, V, M, delta } = data;
+    Plotly.newPlot('beam-panel-chart', [
+      { x, y: V, name: 'Shear (kN)', line: { color: '#2563eb' }, yaxis: 'y1', xaxis: 'x1' },
+      { x, y: M, name: 'Moment (kNm)', line: { color: '#dc2626' }, yaxis: 'y2', xaxis: 'x2' },
+      { x, y: delta.map(d => d * 1000), name: 'Deflection (mm)', line: { color: '#15803d' }, yaxis: 'y3', xaxis: 'x3' }
+    ], {
+      grid: { rows: 1, columns: 3, pattern: 'independent' },
+      height: 260,
+      margin: { t: 30, b: 40, l: 50, r: 20 },
+      title: { text: `Beam Diagrams — ${span} m ${support.replace('_', ' ')}`, font: { size: 12 } },
+      xaxis: { title: 'x (m)' }, xaxis2: { title: 'x (m)' }, xaxis3: { title: 'x (m)' },
+      yaxis: { title: 'V (kN)' }, yaxis2: { title: 'M (kNm)' }, yaxis3: { title: '\u03B4 (mm)' },
+      showlegend: false
+    }, { responsive: true });
+  } catch(e) {
+    outputEl.innerHTML = `<div class="out-error">Beam error: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ============================================================
+// HELPER
+// ============================================================
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+document.getElementById('doc-date').value = new Date().toISOString().split('T')[0];
+
+// Set dirty flag on any input change
+document.querySelectorAll('#meta-row input').forEach(inp => {
+  inp.addEventListener('input', () => { state.dirty = true; });
+});
+
+window.onbeforeunload = () => state.dirty ? 'You have unsaved changes.' : undefined;
+
+// Load Pyodide
+(async function() {
+  try {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js';
+    script.onload = () => initPyodide();
+    script.onerror = () => setStatus('Failed to load Pyodide', 'error');
+    document.body.appendChild(script);
+  } catch(e) {
+    setStatus('Init error: ' + e.message, 'error');
+  }
+})();
+</script>
+</body>
+</html>
