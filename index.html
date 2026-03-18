@@ -307,70 +307,116 @@ async function initPyodide() {
   try {
     const py = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/' });
     state.pyodide = py;
-    setStatus('Installing packages…', 'loading');
-    await py.loadPackagesFromImports('import numpy, sympy');
-    await py.runPythonAsync(`import micropip`);
-    await py.runPythonAsync(`await micropip.install(['handcalcs'])`);
+    setStatus('Loading packages…', 'loading');
+    await py.loadPackage(['numpy', 'sympy']);
     setStatus('Initialising engine…', 'loading');
 
     await py.runPythonAsync(`
-import json, sys, linecache, importlib.util
+import ast, re, json, math
+from math import *
+import numpy as np
+import sympy as sp
 
 _ctx = {}
+_B = chr(92)
+
+_GL = {
+    'alpha':_B+'alpha','beta':_B+'beta','gamma':_B+'gamma','delta':_B+'delta',
+    'epsilon':_B+'varepsilon','zeta':_B+'zeta','eta':_B+'eta','theta':_B+'theta',
+    'kappa':_B+'kappa','mu':_B+'mu','nu':_B+'nu','xi':_B+'xi','rho':_B+'rho',
+    'sigma':_B+'sigma','tau':_B+'tau','phi':_B+'phi','chi':_B+'chi',
+    'psi':_B+'psi','omega':_B+'omega','lam':_B+'lambda','pi':_B+'pi',
+    'Delta':_B+'Delta','Gamma':_B+'Gamma','Lambda':_B+'Lambda','Omega':_B+'Omega',
+    'Phi':_B+'Phi','Sigma':_B+'Sigma','Theta':_B+'Theta','Xi':_B+'Xi',
+}
+
+def _vlx(name):
+    parts = name.split('_')
+    base = _GL.get(parts[0], _B+'mathrm{'+parts[0]+'}')
+    if len(parts) == 1:
+        return base
+    subs = ','.join(_GL.get(p, _B+'mathrm{'+p+'}') for p in parts[1:] if p)
+    return base+'_{'+subs+'}' if subs else base
+
+def _nlx(v, pr=4):
+    try:
+        f = float(v)
+        if f == 0: return '0'
+        if f == int(f) and abs(f) < 1e9: return str(int(f))
+        if abs(f) >= 1e5 or 0 < abs(f) < 1e-2:
+            e = int(math.floor(math.log10(abs(f))))
+            return '{:.{}f}'.format(f/10**e, pr-1)+_B+'times 10^{'+str(e)+'}'
+        return '{:.{}g}'.format(f, pr)
+    except:
+        return str(v)
+
+def _elx(src):
+    s = re.sub(r'#.*', '', src).strip()
+    s = re.sub(r'([A-Za-z_]\\w*)\\s*\\*\\*\\s*(\\w+)',
+               lambda m: _vlx(m.group(1))+'^{'+m.group(2)+'}', s)
+    s = re.sub(r'\\*\\*\\s*(\\w+)', lambda m: '^{'+m.group(1)+'}', s)
+    for fn,lt in [('sqrt',_B+'sqrt'),('sin',_B+'sin'),('cos',_B+'cos'),
+                  ('tan',_B+'tan'),('log',_B+'log'),('exp',_B+'exp')]:
+        s = s.replace(fn+'(', lt+'(')
+    def vrepl(m):
+        n = m.group(0)
+        if '_' in n or n in _GL: return _vlx(n)
+        return _B+'mathrm{'+n+'}'
+    s = re.sub(r'\\b[A-Za-z][A-Za-z0-9_]*\\b', vrepl, s)
+    s = re.sub(r'\\s*\\*\\s*', ' '+_B+'cdot ', s)
+    return s
 
 def init_context():
     global _ctx
     _ctx = {}
-    setup_code = """
-from math import *
-import numpy as np
-import sympy as sp
-# SI unit multipliers (plain floats — compatible with handcalcs)
-m   = 1.0        # metre
-mm  = 1e-3       # millimetre
-cm  = 1e-2       # centimetre
-km  = 1e3        # kilometre
-N   = 1.0        # newton
-kN  = 1e3        # kilonewton
-MN  = 1e6        # meganewton
-Pa  = 1.0        # pascal
-kPa = 1e3        # kilopascal
-MPa = 1e6        # megapascal
-GPa = 1e9        # gigapascal
-kg  = 1.0        # kilogram
-t   = 1e3        # tonne (metric)
-kNm = 1e3        # kilonewton·metre
-MNm = 1e6        # meganewton·metre
-"""
-    exec(setup_code, _ctx)
-    return "ok"
+    exec(
+        'from math import *\\nimport numpy as np\\nimport sympy as sp\\n'
+        'm=1.0;mm=1e-3;cm=1e-2;km=1e3\\n'
+        'N=1.0;kN=1e3;MN=1e6\\n'
+        'Pa=1.0;kPa=1e3;MPa=1e6;GPa=1e9\\n'
+        'kg=1.0;tonne=1e3\\n'
+        'kNm=1e3;MNm=1e6\\n',
+        _ctx
+    )
+    return 'ok'
 
 def run_block(code_str, block_id):
     global _ctx
-    func_lines = ['def _calc():']
-    for line in code_str.strip().split('\\n'):
-        func_lines.append('    ' + (line if line.strip() else '    pass'))
-    func_lines.append('    return locals()')
-    src = '\\n'.join(func_lines) + '\\n'
-    filepath = f'/tmp/block_{block_id}.py'
-    with open(filepath, 'w') as f:
-        f.write(src)
-    linecache.cache[filepath] = (len(src), None, [l + '\\n' for l in src.splitlines()], filepath)
-    code_obj = compile(src, filepath, 'exec')
-    module_dict = dict(_ctx)
-    exec(code_obj, module_dict)
-    from handcalcs.decorator import handcalc
-    decorated = handcalc(precision=3)(module_dict['_calc'])
-    latex_str, result = decorated()
-    new_vars = {k: v for k, v in result.items() if not k.startswith('_') and k != '_calc'}
+    try:
+        tree = ast.parse(code_str)
+    except SyntaxError as e:
+        raise ValueError('Syntax error: '+str(e))
+    ns = dict(_ctx)
+    exec(compile(tree, '<block>', 'exec'), ns)
+    new_vars = {k: v for k, v in ns.items()
+                if not k.startswith('_') and k != '__builtins__'}
     _ctx.update(new_vars)
+    code_lines = code_str.split('\\n')
+    rows = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for t in node.targets:
+                if isinstance(t, ast.Name) and t.id in ns:
+                    nm, val = t.id, ns[t.id]
+                    lhs = _vlx(nm)
+                    num = _nlx(val)
+                    try:
+                        rhs_src = code_lines[node.lineno-1].split('=',1)[1]
+                        rhs_src = re.sub(r'#.*','',rhs_src).strip()
+                        rhs_ltx = _elx(rhs_src)
+                        if rhs_ltx.strip() != num.strip():
+                            rows.append('  '+lhs+' &= '+rhs_ltx+' = '+num)
+                        else:
+                            rows.append('  '+lhs+' &= '+num)
+                    except:
+                        rows.append('  '+lhs+' &= '+num)
+    sep = ' '+_B+_B+' '
+    latex = (_B+'begin{aligned}'+sep.join(rows)+_B+'end{aligned}') if rows else _B+'text{(executed)}'
     var_reprs = {}
     for k, v in new_vars.items():
-        try:
-            var_reprs[k] = float(v)
-        except:
-            var_reprs[k] = str(v)
-    return json.dumps({'latex': latex_str, 'vars': var_reprs})
+        try: var_reprs[k] = float(v)
+        except: var_reprs[k] = str(v)
+    return json.dumps({'latex': latex, 'vars': var_reprs})
 
 def run_check_block(code_str, block_id, check_var, limit, pass_if):
     global _ctx
@@ -520,7 +566,10 @@ init_context()
     state.pyReady = true;
     setStatus('Python Ready', 'ready');
   } catch(e) {
-    setStatus('Python Error: ' + e.message, 'error');
+    document.getElementById('output-content').innerHTML =
+      '<div class="out-error" style="white-space:pre-wrap;word-break:break-all">' +
+      '<strong>Init Error — full details:</strong><br>' + escapeHtml(String(e)) + '</div>';
+    setStatus('Init Error — see right panel', 'error');
     console.error(e);
   }
 }
