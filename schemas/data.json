@@ -1,0 +1,111 @@
+{
+  "version": "1.0",
+  "entries": [
+    {
+      "id": "entry_1720000000_abc123",
+      "emailMessageId": "18a1b2c3d4e5f6",
+      "emailThreadId": "18a1b2c3d4e5f6",
+      "title": "Pricing Discussion - Acme Corp",
+      "subject": "Re: Q3 Pricing Proposal",
+      "from": {
+        "name": "John Smith",
+        "email": "john.smith@acmecorp.com"
+      },
+      "to": [
+        "sales@ourcompany.com"
+      ],
+      "cc": [
+        "manager@ourcompany.com"
+      ],
+      "date": "2024-07-15T14:30:00.000Z",
+      "snippet": "Hi Team, Following our discussion about the Q3 pricing for the expanded service agreement, I wanted to confirm that the volume discount structure works for us...",
+      "htmlFileId": "1AbCdEfGhIjKlMnOpQrStUvWxYz",
+      "htmlFileName": "2024-07-15_Pricing_Discussion_Acme_Corp.html",
+      "emailFolderId": "1AbCdEfGhIjKlMnOpQrStUvWxYz_folder",
+      "attachments": [
+        {
+          "name": "proposal_v2.pdf",
+          "mimeType": "application/pdf",
+          "driveFileId": "1FileIdForAttachment",
+          "sizeBytes": 245760
+        },
+        {
+          "name": "pricing_table.xlsx",
+          "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "driveFileId": "1AnotherFileId",
+          "sizeBytes": 51200
+        }
+      ],
+      "submittedBy": {
+        "name": "Jane Doe",
+        "email": "jane.doe@ourcompany.com"
+      },
+      "submittedAt": "2024-07-15T15:02:30.000Z",
+      "tags": [
+        "pricing",
+        "volume-discount",
+        "proposal",
+        "client-preference"
+      ],
+      "contractStage": "Negotiation",
+      "clientName": "Acme Corp",
+      "region": "NSW",
+      "notes": "Good example of how to structure volume discounts for large clients.\n\nThe wording around payment terms (NET-30 with 2% early payment discount) was well received by the client. They specifically called out the tiered pricing table as clear and easy to understand.\n\nKey takeaway: present discount tiers as percentages alongside dollar amounts.",
+      "images": [
+        {
+          "name": "whiteboard_notes.jpg",
+          "driveFileId": "1ImageFileId",
+          "url": "https://drive.google.com/uc?id=1ImageFileId",
+          "uploadedBy": "jane.doe@ourcompany.com",
+          "uploadedAt": "2024-07-16T09:15:00.000Z"
+        }
+      ],
+      "starred": true,
+      "lastEditedBy": {
+        "name": "Jane Doe",
+        "email": "jane.doe@ourcompany.com"
+      },
+      "lastEditedAt": "2024-07-16T09:15:00.000Z"
+    },
+    {
+      "id": "entry_1720100000_def456",
+      "emailMessageId": null,
+      "emailThreadId": null,
+      "title": "Objection Handling - Budget Constraints",
+      "subject": "",
+      "from": {
+        "name": "Bob Wilson",
+        "email": "bob.wilson@ourcompany.com"
+      },
+      "to": [],
+      "cc": [],
+      "date": "2024-07-18T10:00:00.000Z",
+      "snippet": "When a client says their budget is locked, try reframing the conversation around ROI and total cost of ownership...",
+      "htmlFileId": null,
+      "htmlFileName": null,
+      "emailFolderId": null,
+      "attachments": [],
+      "submittedBy": {
+        "name": "Bob Wilson",
+        "email": "bob.wilson@ourcompany.com"
+      },
+      "submittedAt": "2024-07-18T10:05:00.000Z",
+      "tags": [
+        "objection-handling",
+        "budget",
+        "useful-wording"
+      ],
+      "contractStage": "Negotiation",
+      "clientName": "",
+      "region": "VIC",
+      "notes": "When a client says their budget is locked, try reframing the conversation around ROI and total cost of ownership rather than unit price.\n\nEffective phrases:\n- \"I understand budget constraints. Let me show you how this pays for itself within [timeframe].\"\n- \"What if we structured this so the savings offset the investment within the first quarter?\"\n- \"Many of our clients in similar positions found that the productivity gains alone covered the cost.\"\n\nAvoid: directly challenging their budget figure or suggesting they \"find\" more budget.",
+      "images": [],
+      "starred": false,
+      "lastEditedBy": {
+        "name": "Bob Wilson",
+        "email": "bob.wilson@ourcompany.com"
+      },
+      "lastEditedAt": "2024-07-18T10:05:00.000Z"
+    }
+  ]
+}

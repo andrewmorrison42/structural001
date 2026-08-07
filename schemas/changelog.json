@@ -1,0 +1,101 @@
+{
+  "version": "1.0",
+  "changes": [
+    {
+      "id": "chg_1720000150_xyz001",
+      "entryId": "entry_1720000000_abc123",
+      "action": "created",
+      "timestamp": "2024-07-15T15:02:30.000Z",
+      "user": {
+        "name": "Jane Doe",
+        "email": "jane.doe@ourcompany.com"
+      },
+      "details": {
+        "field": null,
+        "oldValue": null,
+        "newValue": null,
+        "summary": "Entry created from email: Re: Q3 Pricing Proposal"
+      }
+    },
+    {
+      "id": "chg_1720000200_xyz002",
+      "entryId": "entry_1720000000_abc123",
+      "action": "edited",
+      "timestamp": "2024-07-15T16:00:00.000Z",
+      "user": {
+        "name": "Jane Doe",
+        "email": "jane.doe@ourcompany.com"
+      },
+      "details": {
+        "field": "tags",
+        "oldValue": "[]",
+        "newValue": "[\"pricing\",\"volume-discount\",\"proposal\",\"client-preference\"]",
+        "summary": "Updated tags"
+      }
+    },
+    {
+      "id": "chg_1720000300_xyz003",
+      "entryId": "entry_1720000000_abc123",
+      "action": "edited",
+      "timestamp": "2024-07-15T16:05:00.000Z",
+      "user": {
+        "name": "Jane Doe",
+        "email": "jane.doe@ourcompany.com"
+      },
+      "details": {
+        "field": "contractStage",
+        "oldValue": "\"\"",
+        "newValue": "\"Negotiation\"",
+        "summary": "Updated contractStage"
+      }
+    },
+    {
+      "id": "chg_1720000400_xyz004",
+      "entryId": "entry_1720000000_abc123",
+      "action": "edited",
+      "timestamp": "2024-07-16T09:00:00.000Z",
+      "user": {
+        "name": "Jane Doe",
+        "email": "jane.doe@ourcompany.com"
+      },
+      "details": {
+        "field": "notes",
+        "oldValue": "\"\"",
+        "newValue": "\"Good example of how to structure volume discounts...\"",
+        "summary": "Added notes"
+      }
+    },
+    {
+      "id": "chg_1720000500_xyz005",
+      "entryId": "entry_1720000000_abc123",
+      "action": "edited",
+      "timestamp": "2024-07-16T09:15:00.000Z",
+      "user": {
+        "name": "Jane Doe",
+        "email": "jane.doe@ourcompany.com"
+      },
+      "details": {
+        "field": "images",
+        "oldValue": null,
+        "newValue": "whiteboard_notes.jpg",
+        "summary": "Added image: whiteboard_notes.jpg"
+      }
+    },
+    {
+      "id": "chg_1720100300_xyz006",
+      "entryId": "entry_1720100000_def456",
+      "action": "created",
+      "timestamp": "2024-07-18T10:05:00.000Z",
+      "user": {
+        "name": "Bob Wilson",
+        "email": "bob.wilson@ourcompany.com"
+      },
+      "details": {
+        "field": null,
+        "oldValue": null,
+        "newValue": null,
+        "summary": "Manual entry created: Objection Handling - Budget Constraints"
+      }
+    }
+  ]
+}
